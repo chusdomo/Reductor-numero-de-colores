@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reductor de Colores para Dioramas</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        .input-section {
+            margin-bottom: 30px;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            resize: vertical;
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        label {
+            font-weight: bold;
+            color: #34495e;
+        }
+        input[type="range"] {
+            width: 150px;
+        }
+        button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        .results {
+            margin-top: 30px;
+        }
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .color-card {
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: transform 0.2s;
+        }
+        .color-card:hover {
+            transform: scale(1.05);
+        }
+        .color-preview {
+            height: 60px;
+            width: 100%;
+        }
+        .color-info {
+            padding: 8px;
+            font-size: 10px;
+            text-align: center;
+            background: #f8f9fa;
+        }
+        .stats {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .stats h3 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+        }
+        .stat-item {
+            display: inline-block;
+            margin: 5px 15px 5px 0;
+            padding: 5px 10px;
+            background: white;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .download-section {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Reductor de Colores para Dioramas</h1>
+        
+        <div class="input-section">
+            <label for="colorInput">Pega tus colores en formato JSON (uno por línea):</label>
+            <textarea id="colorInput" placeholder='{"preview":"CFB53B","name":"Amarillo_Verdoso_Oscuro_Dorado_7","hex":"CFB53B","rgb":"207, 181, 59","ryb":"25,57,18","complRyb":"75,43,82"}
+{"preview":"273BE2","name":"Azul_Marino_Oscuro_Frío_4","hex":"273BE2","rgb":"39, 59, 226","ryb":"12,17,71","complRyb":"88,83,29"}
+...'></textarea>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="reductionPercentage">Reducción objetivo:</label>
+                <input type="range" id="reductionPercentage" min="30" max="70" value="50">
+                <span id="reductionValue">50%</span>
+            </div>
+            <div class="control-group">
+                <label for="minDistance">Distancia mínima entre colores:</label>
+                <input type="range" id="minDistance" min="10" max="100" value="30">
+                <span id="minDistanceValue">30</span>
+            </div>
+            <div class="control-group">
+                <label for="familyBalance">Balance de familias:</label>
+                <input type="range" id="familyBalance" min="0" max="100" value="70">
+                <span id="familyBalanceValue">70%</span>
+            </div>
+            <button onclick="processColors()">🔄 Reducir Colores</button>
+        </div>
+
+        <div id="estimation" style="text-align: center; margin: 10px 0; padding: 10px; background: #e8f4f8; border-radius: 5px; font-weight: bold; color: #2c3e50;"></div>
+
+        <div class="progress" id="progress" style="display: none;">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <div class="results" id="results" style="display: none;">
+            <div class="stats" id="stats"></div>
+            <div class="color-grid" id="colorGrid"></div>
+            <div class="download-section">
+                <button onclick="downloadColors()">📥 Descargar Colores Reducidos</button>
+                <button onclick="downloadAnalysis()">📊 Descargar Análisis</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let originalColors = [];
+        let reducedColors = [];
+        let analysisData = {};
+
+        // Actualizar valores de los sliders y mostrar estimación
+        document.getElementById('reductionPercentage').addEventListener('input', function() {
+            document.getElementById('reductionValue').textContent = this.value + '%';
+            updateEstimation();
+        });
+
+        document.getElementById('minDistance').addEventListener('input', function() {
+            document.getElementById('minDistanceValue').textContent = this.value;
+            updateEstimation();
+        });
+
+        document.getElementById('familyBalance').addEventListener('input', function() {
+            document.getElementById('familyBalanceValue').textContent = this.value + '%';
+            updateEstimation();
+        });
+
+        function updateEstimation() {
+            if (originalColors.length === 0) return;
+            
+            const reductionPercentage = parseInt(document.getElementById('reductionPercentage').value);
+            const targetCount = Math.ceil(originalColors.length * (1 - reductionPercentage / 100));
+            
+            const estimationElement = document.getElementById('estimation');
+            if (estimationElement) {
+                estimationElement.textContent = `Estimación: ${targetCount} colores (de ${originalColors.length} originales)`;
+            }
+        }
+
+        function hexToRgb(hex) {
+            // Limpiar el hex y asegurar formato correcto
+            hex = hex.replace('#', '');
+            if (hex.length === 3) {
+                hex = hex.split('').map(char => char + char).join('');
+            }
+            if (hex.length !== 6) {
+                console.warn('Formato hex inválido:', hex);
+                return {r: 0, g: 0, b: 0}; // Color por defecto
+            }
+            
+            const result = /^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : {r: 0, g: 0, b: 0};
+        }
+
+        function rgbToHsl(r, g, b) {
+            r /= 255; g /= 255; b /= 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+
+            if (max === min) {
+                h = s = 0;
+            } else {
+                const d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+            return {h: h * 360, s: s * 100, l: l * 100};
+        }
+
+        function colorDistance(color1, color2) {
+            const rgb1 = hexToRgb(color1.hex);
+            const rgb2 = hexToRgb(color2.hex);
+            
+            // Distancia euclidiana en espacio RGB con pesos perceptuales
+            const rWeight = 0.3, gWeight = 0.59, bWeight = 0.11;
+            const dr = (rgb1.r - rgb2.r) * rWeight;
+            const dg = (rgb1.g - rgb2.g) * gWeight;
+            const db = (rgb1.b - rgb2.b) * bWeight;
+            
+            return Math.sqrt(dr * dr + dg * dg + db * db);
+        }
+
+        function getColorFamily(color) {
+            const rgb = hexToRgb(color.hex);
+            const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+            
+            if (hsl.s < 10) return 'Gris';
+            if (hsl.l < 20) return 'Negro';
+            if (hsl.l > 80) return 'Blanco';
+            
+            const hue = hsl.h;
+            if (hue < 15 || hue >= 345) return 'Rojo';
+            if (hue < 45) return 'Naranja';
+            if (hue < 75) return 'Amarillo';
+            if (hue < 105) return 'Amarillo_Verde';
+            if (hue < 135) return 'Verde';
+            if (hue < 165) return 'Verde_Azul';
+            if (hue < 195) return 'Cian';
+            if (hue < 225) return 'Azul';
+            if (hue < 255) return 'Azul_Violeta';
+            if (hue < 285) return 'Violeta';
+            if (hue < 315) return 'Magenta';
+            return 'Rosa';
+        }
+
+        function calculateColorImportance(color, allColors) {
+            const rgb = hexToRgb(color.hex);
+            const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+            
+            let importance = 0;
+            
+            // Saturación alta = más importante
+            importance += hsl.s / 100 * 30;
+            
+            // Luminosidad media = más importante
+            const lumFactor = 1 - Math.abs(hsl.l - 50) / 50;
+            importance += lumFactor * 20;
+            
+            // Distancia promedio a otros colores
+            let avgDistance = 0;
+            allColors.forEach(otherColor => {
+                if (otherColor !== color) {
+                    avgDistance += colorDistance(color, otherColor);
+                }
+            });
+            avgDistance /= allColors.length - 1;
+            importance += Math.min(avgDistance / 100, 1) * 50;
+            
+            return importance;
+        }
+
+        function updateProgress(percentage) {
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = percentage + '%';
+        }
+
+        async function processColors() {
+            const input = document.getElementById('colorInput').value.trim();
+            if (!input) {
+                alert('Por favor, pega los colores en formato JSON');
+                return;
+            }
+
+            const progress = document.getElementById('progress');
+            progress.style.display = 'block';
+            updateProgress(0);
+
+            try {
+                // Parsear colores con validación mejorada
+                const lines = input.split('\n').filter(line => line.trim());
+                originalColors = [];
+                
+                for (let i = 0; i < lines.length; i++) {
+                    try {
+                        const colorData = JSON.parse(lines[i].trim());
+                        
+                        // Validar que tenga los campos necesarios
+                        if (!colorData.hex || !colorData.name) {
+                            console.warn(`Color en línea ${i + 1} no tiene hex o name:`, colorData);
+                            continue;
+                        }
+                        
+                        // Limpiar hex
+                        colorData.hex = colorData.hex.replace('#', '').toUpperCase();
+                        
+                        // Validar formato hex
+                        if (!/^[0-9A-F]{6}$/i.test(colorData.hex)) {
+                            console.warn(`Color en línea ${i + 1} tiene formato hex inválido:`, colorData.hex);
+                            continue;
+                        }
+                        
+                        originalColors.push(colorData);
+                    } catch (parseError) {
+                        console.warn(`Error parseando línea ${i + 1}:`, lines[i], parseError);
+                        continue;
+                    }
+                }
+                
+                if (originalColors.length === 0) {
+                    alert('No se pudieron parsear colores válidos. Verifica el formato JSON.');
+                    return;
+                }
+                
+                console.log(`Colores parseados correctamente: ${originalColors.length}`);
+                updateEstimation();
+                
+                updateProgress(20);
+
+                // Calcular parámetros
+                const reductionPercentage = parseInt(document.getElementById('reductionPercentage').value);
+                const minDistance = parseInt(document.getElementById('minDistance').value);
+                const familyBalance = parseInt(document.getElementById('familyBalance').value) / 100;
+                
+                const targetCount = Math.ceil(originalColors.length * (1 - reductionPercentage / 100));
+                
+                updateProgress(40);
+
+                // Agrupar por familias
+                const families = {};
+                originalColors.forEach(color => {
+                    const family = getColorFamily(color);
+                    if (!families[family]) families[family] = [];
+                    families[family].push(color);
+                });
+
+                updateProgress(60);
+
+                // Calcular importancia de cada color
+                originalColors.forEach(color => {
+                    color.importance = calculateColorImportance(color, originalColors);
+                });
+
+                // Reducir colores por familia manteniendo proporción
+                reducedColors = [];
+                const familyNames = Object.keys(families);
+                
+                for (const familyName of familyNames) {
+                    const familyColors = families[familyName];
+                    const familyProportion = familyColors.length / originalColors.length;
+                    const familyTarget = Math.max(1, Math.round(targetCount * familyProportion * familyBalance));
+                    
+                    // Ordenar por importancia
+                    familyColors.sort((a, b) => b.importance - a.importance);
+                    
+                    // Seleccionar colores evitando similitudes
+                    const selectedFromFamily = [];
+                    for (const color of familyColors) {
+                        if (selectedFromFamily.length >= familyTarget) break;
+                        
+                        let tooSimilar = false;
+                        for (const selected of selectedFromFamily) {
+                            if (colorDistance(color, selected) < minDistance) {
+                                tooSimilar = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!tooSimilar) {
+                            selectedFromFamily.push(color);
+                        }
+                    }
+                    
+                    reducedColors.push(...selectedFromFamily);
+                }
+
+                updateProgress(80);
+
+                // Si no llegamos al objetivo, completar con los más importantes
+                if (reducedColors.length < targetCount) {
+                    const remaining = originalColors.filter(color => !reducedColors.includes(color));
+                    remaining.sort((a, b) => b.importance - a.importance);
+                    
+                    for (const color of remaining) {
+                        if (reducedColors.length >= targetCount) break;
+                        
+                        let tooSimilar = false;
+                        for (const selected of reducedColors) {
+                            if (colorDistance(color, selected) < minDistance) {
+                                tooSimilar = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!tooSimilar) {
+                            reducedColors.push(color);
+                        }
+                    }
+                }
+
+                updateProgress(100);
+
+                // Mostrar resultados
+                displayResults();
+                
+                setTimeout(() => {
+                    progress.style.display = 'none';
+                }, 1000);
+
+            } catch (error) {
+                alert('Error al procesar colores: ' + error.message);
+                progress.style.display = 'none';
+            }
+        }
+
+        function displayResults() {
+            const results = document.getElementById('results');
+            const stats = document.getElementById('stats');
+            const colorGrid = document.getElementById('colorGrid');
+            
+            // Estadísticas
+            const familyStats = {};
+            reducedColors.forEach(color => {
+                const family = getColorFamily(color);
+                familyStats[family] = (familyStats[family] || 0) + 1;
+            });
+            
+            analysisData = {
+                original: originalColors.length,
+                reduced: reducedColors.length,
+                reduction: ((1 - reducedColors.length / originalColors.length) * 100).toFixed(1),
+                families: familyStats
+            };
+            
+            stats.innerHTML = `
+                <h3>📊 Resultados del Análisis</h3>
+                <span class="stat-item">Original: ${analysisData.original}</span>
+                <span class="stat-item">Reducido: ${analysisData.reduced}</span>
+                <span class="stat-item">Reducción: ${analysisData.reduction}%</span>
+                <span class="stat-item">Familias: ${Object.keys(familyStats).length}</span>
+            `;
+            
+            // Grid de colores
+            colorGrid.innerHTML = '';
+            reducedColors.forEach(color => {
+                const card = document.createElement('div');
+                card.className = 'color-card';
+                card.innerHTML = `
+                    <div class="color-preview" style="background-color: #${color.hex}"></div>
+                    <div class="color-info">
+                        <div style="font-weight: bold;">#${color.hex}</div>
+                        <div>${color.name}</div>
+                        <div>Familia: ${getColorFamily(color)}</div>
+                    </div>
+                `;
+                colorGrid.appendChild(card);
+            });
+            
+            results.style.display = 'block';
+        }
+
+        function downloadColors() {
+            const dataStr = reducedColors.map(color => JSON.stringify(color)).join('\n');
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportFileDefaultName = `colores_diorama_reducidos_${reducedColors.length}.json`;
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        }
+
+        function downloadAnalysis() {
+            const analysis = {
+                ...analysisData,
+                timestamp: new Date().toISOString(),
+                parameters: {
+                    reductionPercentage: document.getElementById('reductionPercentage').value,
+                    minDistance: document.getElementById('minDistance').value,
+                    familyBalance: document.getElementById('familyBalance').value
+                }
+            };
+            
+            const dataStr = JSON.stringify(analysis, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportFileDefaultName = `analisis_reduccion_colores.json`;
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        }
+    </script>
+</body>
+</html>
